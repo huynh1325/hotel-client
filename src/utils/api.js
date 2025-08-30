@@ -5,3 +5,7 @@ const bookingRoom = (name, gender, email, phone, password) => {
         name, gender, email, phone, password
     })
 }
+
+export const getAllRooms = () => {
+  return axios.get("/api/v1/rooms");
+};
