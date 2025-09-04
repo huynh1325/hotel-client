@@ -11,7 +11,7 @@ import {
   InputNumber,
 } from "antd";
 import { toast } from "react-toastify";
-import { getAllRooms } from "../utils/api";
+import { getAllRooms, createBooking } from "../utils/api";
 import dayjs from "dayjs";
 
 const { Content } = Layout;
@@ -44,7 +44,8 @@ const Room = () => {
         return "#d5d5d5ff";
         // return "#95de64";
       case "booked":
-        return "#d9d9d9";
+        // return "#d9d9d9";
+        return "#95de64";
       case "cleaning":
         return "#ff7875";
       default:
@@ -166,27 +167,55 @@ const Room = () => {
     }
   };
 
-  const handleOk = () => {
-    form
-      .validateFields()
-      .then((values) => {
-        Modal.success({
-          title: "Đặt phòng thành công",
-          content: `Phòng ${selectedRoom.roomNumber} đã được đặt cho khách ${values.tenKhach}.\nTổng tiền: ${calculatedPrice.toLocaleString()} VNĐ`,
-        });
-        setIsModalVisible(false);
-        form.resetFields();
-        setCalculatedPrice(0);
-      })
-      .catch((info) => {
-        console.log("Validate Failed:", info);
-      });
-  };
-
   const handleCancel = () => {
     setIsModalVisible(false);
     form.resetFields();
     setCalculatedPrice(0);
+  };
+
+  const handleCreateBooking = () => {
+    form
+      .validateFields()
+      .then(async (values) => {
+        if (!selectedRoom) return;
+
+        const stayTime = values.stayTime || [];
+        const checkInDate = stayTime[0]?.toISOString();
+        const checkOutDate = stayTime[1]?.toISOString();
+
+        // Chuẩn bị dữ liệu gửi lên backend
+        const bookingData = {
+          roomId: selectedRoom._id,
+          customerName: values.tenKhach,
+          citizenId: values.cccd,
+          checkInDate,
+          checkOutDate,
+          rentalsDays: values.numOfDays || values.duration || 1,
+          stayType: values.stayType,
+          paymentMethod: values.payment,
+          totalPrice: calculatedPrice,
+        };
+
+        try {
+          const res = await createBooking(bookingData);
+          toast.success(`Đặt phòng thành công`)
+          setIsModalVisible(false);
+          form.resetFields();
+          setCalculatedPrice(0);
+
+          setRooms((prev) =>
+            prev.map((r) =>
+              r._id === selectedRoom._id ? { ...r, status: "booked" } : r
+            )
+          );
+        } catch (err) {
+          console.log(err);
+          toast.error(err.message || "Đặt phòng thất bại!");
+        }
+      })
+      .catch((info) => {
+        console.log("Validate Failed:", info);
+      });
   };
 
   const renderFloors = () => {
@@ -263,7 +292,7 @@ const Room = () => {
         <Modal
           title={`Đặt phòng ${selectedRoom?.roomNumber}`}
           open={isModalVisible}
-          onOk={handleOk}
+          onOk={handleCreateBooking}
           onCancel={handleCancel}
           okText="Xác nhận"
           cancelText="Hủy"

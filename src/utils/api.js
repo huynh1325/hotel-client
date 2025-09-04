@@ -1,9 +1,7 @@
 import axios from "./axios.customize";
 
-const bookingRoom = (name, gender, email, phone, password) => {
-    return axios.post('/api/v1/booking', {
-        name, gender, email, phone, password
-    })
+export const createBooking = (data) => {
+    return axios.post('/api/v1/booking', data)
 }
 
 export const getAllRooms = () => {
