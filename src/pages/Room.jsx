@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { Layout, Card, Modal, Form, Input, DatePicker, Select } from "antd";
+import {
+  Layout,
+  Card,
+  Modal,
+  Form,
+  Input,
+  DatePicker,
+  Select,
+  Radio,
+  InputNumber,
+} from "antd";
 import { toast } from "react-toastify";
 import { getAllRooms } from "../utils/api";
+import dayjs from "dayjs";
 
 const { Content } = Layout;
 const { RangePicker } = DatePicker;
@@ -11,15 +22,15 @@ const Room = () => {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [form] = Form.useForm();
   const [rooms, setRooms] = useState([]);
+  const [stayType, setStayType] = useState(null);
+  const [calculatedPrice, setCalculatedPrice] = useState(0);
+  const [selectedRoomType, setSelectedRoomType] = useState(null);
 
   useEffect(() => {
     const fetchRooms = async () => {
       try {
         const res = await getAllRooms();
-        console.log("✅ Kết quả API:", res);
-        if (res) {
-          setRooms(res);  
-        }
+        if (res) setRooms(res);
       } catch (error) {
         toast.error("Lỗi khi tải danh sách phòng!");
       }
@@ -30,22 +41,128 @@ const Room = () => {
   const getRoomColor = (status) => {
     switch (status) {
       case "available":
-        return "#95de64"; // xanh lá
+        return "#d5d5d5ff";
+        // return "#95de64";
       case "booked":
-        return "#d9d9d9"; // xám
+        return "#d9d9d9";
       case "cleaning":
-        return "#ff7875"; // đỏ
+        return "#ff7875";
       default:
         return "#d9d9d9";
     }
   };
 
+  const updatePriceForRoom = (room, type, value, roomTypeIndex = 0) => {
+    if (!room?.roomType?.length) return;
+
+    const roomType = room.roomType[roomTypeIndex];
+    const prices = roomType.basePricing || [];
+
+    const getPrice = (bookingType) => {
+      const p = prices.find((pr) => pr.bookingType === bookingType);
+      return p ? p.price : 0;
+    };
+
+    let total = 0;
+
+    switch (type) {
+      case "daily":
+        total = getPrice("daily") * value;
+        break;
+
+      case "hourly":
+        total = getPrice("hourly") * value;
+        break;
+
+      case "overnight":
+        if (value <= 1) {
+          total = getPrice("overnight");
+        } else {
+          total = getPrice("overnight") + getPrice("daily") * (value - 1);
+        }
+        break;
+
+      default:
+        total = 0;
+    }
+
+    setCalculatedPrice(total);
+  };
+
   const handleRoomClick = (room) => {
     if (room.status === "available") {
       setSelectedRoom(room);
+
+      setSelectedRoomType(0);
+    
+      setStayType("daily");
+
+      const today = dayjs();
+      const checkin = today.hour(14).minute(0).second(0);
+      const checkout = checkin.add(1, "day").hour(12).minute(0).second(0);
+
+      form.setFieldsValue({
+        stayType: "daily",
+        stayTime: [checkin, checkout],
+        numOfDays: 1,
+      });
+
+      updatePriceForRoom(room, "daily", 1, selectedRoomType ?? 0);
       setIsModalVisible(true);
     } else {
       toast.error(`Phòng ${room.roomNumber} hiện đang ${room.status}`);
+    }
+  };
+
+  const handleStayTypeChange = (e) => {
+    const type = e.target.value;
+    setStayType(type);
+
+    const today = dayjs();
+    let checkin, checkout;
+
+    if (type === "daily") {
+      checkin = today.hour(14).minute(0).second(0);
+      checkout = checkin.add(1, "day").hour(12).minute(0).second(0);
+      form.setFieldsValue({ stayTime: [checkin, checkout], numOfDays: 1 });
+      updatePriceForRoom(selectedRoom, "daily", 1, selectedRoomType ?? 0);
+    } else if (type === "overnight") {
+      checkin = today.hour(19).minute(0).second(0);
+      checkout = checkin.add(1, "day").hour(12).minute(0).second(0);
+      form.setFieldsValue({ stayTime: [checkin, checkout], numOfDays: 1 });
+      updatePriceForRoom(selectedRoom, "overnight", 1, selectedRoomType ?? 0);
+    } else {
+      checkin = today;
+      checkout = today.add(1, "hour");
+      form.setFieldsValue({ stayTime: [checkin, checkout], duration: 1 });
+      updatePriceForRoom(selectedRoom, "hourly", 1, selectedRoomType ?? 0);
+    }
+  };
+
+  const handleNumOfDaysChange = (value) => {
+    const type = stayType;
+    const today = dayjs();
+    let checkin, checkout;
+
+    if (type === "daily") {
+      checkin = today.hour(14).minute(0).second(0);
+      checkout = checkin.add(value, "day").hour(12).minute(0).second(0);
+    } else if (type === "overnight") {
+      checkin = today.hour(19).minute(0).second(0);
+      checkout = checkin.add(value, "day").hour(12).minute(0).second(0);
+    }
+
+    form.setFieldsValue({ stayTime: [checkin, checkout] });
+    updatePriceForRoom(selectedRoom, type, value, selectedRoomType ?? 0);
+  };
+
+  const handleDurationChange = (value) => {
+    const stayTime = form.getFieldValue("stayTime");
+    const checkin = stayTime?.[0] || dayjs();
+    if (value) {
+      const checkout = checkin.add(value, "hour");
+      form.setFieldsValue({ stayTime: [checkin, checkout] });
+      updatePriceForRoom(selectedRoom, "hourly", value, selectedRoomType ?? 0);
     }
   };
 
@@ -53,13 +170,13 @@ const Room = () => {
     form
       .validateFields()
       .then((values) => {
-        console.log("Thông tin khách hàng:", values);
         Modal.success({
           title: "Đặt phòng thành công",
-          content: `Phòng ${selectedRoom.roomNumber} đã được đặt cho khách ${values.tenKhach}`,
+          content: `Phòng ${selectedRoom.roomNumber} đã được đặt cho khách ${values.tenKhach}.\nTổng tiền: ${calculatedPrice.toLocaleString()} VNĐ`,
         });
         setIsModalVisible(false);
         form.resetFields();
+        setCalculatedPrice(0);
       })
       .catch((info) => {
         console.log("Validate Failed:", info);
@@ -69,11 +186,10 @@ const Room = () => {
   const handleCancel = () => {
     setIsModalVisible(false);
     form.resetFields();
+    setCalculatedPrice(0);
   };
 
-  // 📌 Render danh sách phòng theo tầng
   const renderFloors = () => {
-    // Group rooms theo floor
     const grouped = rooms.reduce((acc, room) => {
       acc[room.floor] = acc[room.floor] || [];
       acc[room.floor].push(room);
@@ -81,10 +197,12 @@ const Room = () => {
     }, {});
 
     return Object.keys(grouped)
-      .sort((a, b) => a - b) // sắp xếp theo tầng
+      .sort((a, b) => a - b)
       .map((floor) => (
         <div key={floor} style={{ marginBottom: 24 }}>
-          <h3 style={{ marginBottom: 10 }}>Tầng {floor}</h3>
+          <h3 style={{ marginBottom: 10 }}>
+            {Number(floor) === 0 ? "Tầng trệt" : `Tầng ${floor}`}
+          </h3>
           <div
             style={{
               display: "grid",
@@ -100,10 +218,10 @@ const Room = () => {
                   backgroundColor: getRoomColor(room.status),
                   textAlign: "center",
                   borderRadius: 8,
-                  color: "#fff",
+                  color: "#080707ff",
                   fontWeight: "bold",
-                  height: 80,
-                  width: 180,
+                  height: 140,
+                  width: 220,
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "center",
@@ -112,9 +230,13 @@ const Room = () => {
                 bodyStyle={{ padding: 6 }}
                 onClick={() => handleRoomClick(room)}
               >
-                <div style={{ fontSize: 13 }}>P{room.roomNumber}</div>
-                <div style={{ fontSize: 11 }}>{room.roomType?.name || "N/A"}</div>
-                <div style={{ fontSize: 10 }}>
+                <div style={{ fontSize: 16 }}>P{room.roomNumber}</div>
+                <div style={{ fontSize: 14 }}>
+                  {room.roomType && room.roomType.length > 0
+                    ? room.roomType.map((rt) => rt.name).join(" + ")
+                    : "N/A"}
+                </div>
+                <div style={{ fontSize: 14 }}>
                   {room.status === "available" ? "Đang chờ" : room.status}
                 </div>
               </Card>
@@ -163,12 +285,76 @@ const Room = () => {
               <Input />
             </Form.Item>
 
+            {selectedRoom?.roomType?.length === 2 && (
+              <Form.Item label="Chọn loại phòng">
+                <Radio.Group
+                  value={selectedRoomType}
+                  onChange={(e) => {
+                    const index = e.target.value;
+                    setSelectedRoomType(index);
+                    updatePriceForRoom(selectedRoom, stayType || "daily", 1, index);
+                  }}
+                >
+                  {selectedRoom.roomType.map((rt, index) => (
+                    <Radio key={rt._id} value={index}>
+                      {rt.name}
+                    </Radio>
+                  ))}
+                </Radio.Group>
+              </Form.Item>
+            )}
+
             <Form.Item
-              name="ngay"
-              label="Ngày check-in / check-out"
-              rules={[{ required: true, message: "Vui lòng chọn ngày" }]}
+              name="stayType"
+              label="Loại hình thuê"
+              rules={[{ required: true, message: "Vui lòng chọn loại hình thuê" }]}
             >
-              <RangePicker format="DD/MM/YYYY" />
+              <Radio.Group onChange={handleStayTypeChange}>
+                <Radio value="daily">Nguyên ngày</Radio>
+                <Radio value="overnight">Qua đêm</Radio>
+                <Radio value="hourly">Ngắn hạn</Radio>
+              </Radio.Group>
+            </Form.Item>
+
+            {stayType === "hourly" && (
+              <Form.Item
+                name="duration"
+                label="Số giờ thuê"
+                rules={[{ required: true, message: "Vui lòng nhập số giờ" }]}
+              >
+                <InputNumber
+                  min={1}
+                  max={24}
+                  onChange={handleDurationChange}
+                  style={{ width: "100%" }}
+                />
+              </Form.Item>
+            )}
+
+            {(stayType === "daily" || stayType === "overnight") && (
+              <Form.Item
+                name="numOfDays"
+                label="Số ngày thuê"
+                rules={[{ required: true, message: "Vui lòng nhập số ngày" }]}
+              >
+                <InputNumber
+                  min={1}
+                  onChange={handleNumOfDaysChange}
+                  style={{ width: "100%" }}
+                />
+              </Form.Item>
+            )}
+
+            <Form.Item
+              name="stayTime"
+              label="Thời gian lưu trú"
+              rules={[{ required: true, message: "Vui lòng chọn thời gian lưu trú" }]}
+            >
+              <RangePicker
+                showTime={{ format: "HH:mm" }}
+                format="DD/MM/YYYY HH:mm"
+                style={{ width: "100%" }}
+              />
             </Form.Item>
 
             <Form.Item
@@ -181,6 +367,10 @@ const Room = () => {
                 <Select.Option value="chuyenkhoan">Chuyển khoản</Select.Option>
                 <Select.Option value="vnpay">VNPay</Select.Option>
               </Select>
+            </Form.Item>
+
+            <Form.Item label="Tổng tiền (VNĐ)">
+              <Input value={calculatedPrice.toLocaleString()} disabled />
             </Form.Item>
           </Form>
         </Modal>
