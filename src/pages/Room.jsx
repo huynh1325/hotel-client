@@ -11,7 +11,7 @@ import {
   InputNumber,
 } from "antd";
 import { toast } from "react-toastify";
-import { getAllRooms, createBooking } from "../utils/api";
+import { getAllRooms, createBooking, getCurrentBookingByRoom, checkoutRoomApi } from "../utils/api";
 import dayjs from "dayjs";
 
 const { Content } = Layout;
@@ -25,6 +25,8 @@ const Room = () => {
   const [stayType, setStayType] = useState(null);
   const [calculatedPrice, setCalculatedPrice] = useState(0);
   const [selectedRoomType, setSelectedRoomType] = useState(null);
+  const [isCheckoutModalVisible, setIsCheckoutModalVisible] = useState(false);
+  const [checkoutRoom, setCheckoutRoom] = useState(null);
 
   useEffect(() => {
     const fetchRooms = async () => {
@@ -110,10 +112,13 @@ const Room = () => {
 
       updatePriceForRoom(room, "daily", 1, selectedRoomType ?? 0);
       setIsModalVisible(true);
-    } else {
-      toast.error(`Phòng ${room.roomNumber} hiện đang ${room.status}`);
-    }
-  };
+    } else if (room.status === "booked") {
+        setCheckoutRoom(room);
+        setIsCheckoutModalVisible(true);
+      } else {
+        toast.error(`Phòng ${room.roomNumber} hiện đang ${room.status}`);
+      }
+    };
 
   const handleStayTypeChange = (e) => {
     const type = e.target.value;
@@ -167,6 +172,34 @@ const Room = () => {
     }
   };
 
+  const handleCheckout = async () => {
+    try {
+      if (!checkoutRoom?._id) {
+        toast.error("Thiếu thông tin phòng để checkout!");
+        return;
+      }
+
+      const currentBooking = await getCurrentBookingByRoom(checkoutRoom._id);
+        if (!currentBooking?._id) {
+          toast.error("Không tìm thấy booking nào đang active cho phòng này!");
+          return;
+        }
+
+      await checkoutRoomApi(checkoutRoom._id, currentBooking._id);
+
+      toast.success(`Checkout phòng ${checkoutRoom.roomNumber} thành công`);
+      setRooms((prev) =>
+        prev.map((r) =>
+          r._id === checkoutRoom._id ? { ...r, status: "available" } : r
+        )
+      );
+      setIsCheckoutModalVisible(false);
+      setCheckoutRoom(null);
+    } catch (error) {
+      toast.error(error.message || "Checkout thất bại!");
+    }
+  };
+
   const handleCancel = () => {
     setIsModalVisible(false);
     form.resetFields();
@@ -183,7 +216,6 @@ const Room = () => {
         const checkInDate = stayTime[0]?.toISOString();
         const checkOutDate = stayTime[1]?.toISOString();
 
-        // Chuẩn bị dữ liệu gửi lên backend
         const bookingData = {
           roomId: selectedRoom._id,
           customerName: values.tenKhach,
@@ -218,6 +250,8 @@ const Room = () => {
       });
   };
 
+
+
   const renderFloors = () => {
     const grouped = rooms.reduce((acc, room) => {
       acc[room.floor] = acc[room.floor] || [];
@@ -248,7 +282,6 @@ const Room = () => {
                   textAlign: "center",
                   borderRadius: 8,
                   color: "#080707ff",
-                  fontWeight: "bold",
                   height: 140,
                   width: 220,
                   display: "flex",
@@ -259,7 +292,11 @@ const Room = () => {
                 bodyStyle={{ padding: 6 }}
                 onClick={() => handleRoomClick(room)}
               >
-                <div style={{ fontSize: 16 }}>P{room.roomNumber}</div>
+                <div style={{
+                  fontSize: 16,
+                  fontWeight: "bold",
+                  marginBottom: "5px"
+                  }}>P{room.roomNumber}</div>
                 <div style={{ fontSize: 14 }}>
                   {room.roomType && room.roomType.length > 0
                     ? room.roomType.map((rt) => rt.name).join(" + ")
@@ -339,7 +376,7 @@ const Room = () => {
               rules={[{ required: true, message: "Vui lòng chọn loại hình thuê" }]}
             >
               <Radio.Group onChange={handleStayTypeChange}>
-                <Radio value="daily">Nguyên ngày</Radio>
+                <Radio value="daily">Cả ngày</Radio>
                 <Radio value="overnight">Qua đêm</Radio>
                 <Radio value="hourly">Ngắn hạn</Radio>
               </Radio.Group>
@@ -402,6 +439,19 @@ const Room = () => {
               <Input value={calculatedPrice.toLocaleString()} disabled />
             </Form.Item>
           </Form>
+        </Modal>
+        <Modal
+          title={`Checkout phòng ${checkoutRoom?.roomNumber}`}
+          open={isCheckoutModalVisible}
+          onOk={handleCheckout}
+          onCancel={() => {
+            setIsCheckoutModalVisible(false);
+            setCheckoutRoom(null);
+          }}
+          okText="Xác nhận Checkout"
+          cancelText="Hủy"
+        >
+          <p>Bạn có chắc chắn muốn checkout phòng {checkoutRoom?.roomNumber} không?</p>
         </Modal>
       </div>
     </Content>
