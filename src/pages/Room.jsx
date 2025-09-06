@@ -27,6 +27,7 @@ const Room = () => {
   const [selectedRoomType, setSelectedRoomType] = useState(null);
   const [isCheckoutModalVisible, setIsCheckoutModalVisible] = useState(false);
   const [checkoutRoom, setCheckoutRoom] = useState(null);
+  const [currentBooking, setCurrentBooking] = useState(null);
 
   useEffect(() => {
     const fetchRooms = async () => {
@@ -92,7 +93,7 @@ const Room = () => {
     setCalculatedPrice(total);
   };
 
-  const handleRoomClick = (room) => {
+  const handleRoomClick = async (room) => {
     if (room.status === "available") {
       setSelectedRoom(room);
 
@@ -113,12 +114,22 @@ const Room = () => {
       updatePriceForRoom(room, "daily", 1, selectedRoomType ?? 0);
       setIsModalVisible(true);
     } else if (room.status === "booked") {
-        setCheckoutRoom(room);
-        setIsCheckoutModalVisible(true);
-      } else {
-        toast.error(`Phòng ${room.roomNumber} hiện đang ${room.status}`);
+        try {
+          const booking = await getCurrentBookingByRoom(room._id);
+          if (booking) {
+          setCurrentBooking(booking);
+          setCheckoutRoom(room);
+          setIsCheckoutModalVisible(true);
+        } else {
+          toast.error("Không tìm thấy booking nào cho phòng này!");
+        }
+      } catch (err) {
+        toast.error("Lỗi khi lấy thông tin booking!");
       }
-    };
+    } else {
+      toast.error(`Phòng ${room.roomNumber} hiện đang ${room.status}`);
+    }
+  };
 
   const handleStayTypeChange = (e) => {
     const type = e.target.value;
@@ -185,7 +196,7 @@ const Room = () => {
           return;
         }
 
-      await checkoutRoomApi(checkoutRoom._id, currentBooking._id);
+      await checkoutRoomApinpm(checkoutRoom._id, currentBooking._id);
 
       toast.success(`Checkout phòng ${checkoutRoom.roomNumber} thành công`);
       setRooms((prev) =>
@@ -250,7 +261,16 @@ const Room = () => {
       });
   };
 
+  const stayTypeLabels = {
+    daily: "Cả ngày",
+    overnight: "Qua đêm",
+    hourly: "Ngắn hạn",
+  };
 
+  const paymentMethodLabels = {
+    cash: "Tiền mặt",
+    banking: "Chuyển khoản",
+  };
 
   const renderFloors = () => {
     const grouped = rooms.reduce((acc, room) => {
@@ -429,9 +449,8 @@ const Room = () => {
               rules={[{ required: true, message: "Vui lòng chọn phương thức thanh toán" }]}
             >
               <Select placeholder="Chọn phương thức">
-                <Select.Option value="tienmat">Tiền mặt</Select.Option>
-                <Select.Option value="chuyenkhoan">Chuyển khoản</Select.Option>
-                <Select.Option value="vnpay">VNPay</Select.Option>
+                <Select.Option value="cash">Tiền mặt</Select.Option>
+                <Select.Option value="banking">Chuyển khoản</Select.Option>
               </Select>
             </Form.Item>
 
@@ -447,11 +466,28 @@ const Room = () => {
           onCancel={() => {
             setIsCheckoutModalVisible(false);
             setCheckoutRoom(null);
+            setCurrentBooking(null);
           }}
           okText="Xác nhận Checkout"
           cancelText="Hủy"
         >
-          <p>Bạn có chắc chắn muốn checkout phòng {checkoutRoom?.roomNumber} không?</p>
+          {currentBooking ? (
+            <div>
+              <p><b>Tên khách:</b> {currentBooking.customerName}</p>
+              <p><b>CCCD:</b> {currentBooking.citizenId}</p>
+              <p>
+                <b>Thời gian:</b>{" "}
+                {dayjs(currentBooking.checkInDate).format("DD/MM/YYYY HH:mm")} -{" "}
+                {dayjs(currentBooking.checkOutDate).format("DD/MM/YYYY HH:mm")}
+              </p>
+              <p><b>Loại hình thuê:</b> {stayTypeLabels[currentBooking.stayType] || currentBooking.stayType}</p>
+              <p><b>Số ngày/Giờ thuê:</b> {currentBooking.rentalsDays}</p>
+              <p><b>Phương thức thanh toán:</b> {paymentMethodLabels[currentBooking.paymentMethod] || currentBooking.paymentMethod}</p>
+              <p><b>Tổng tiền:</b> {currentBooking.totalPrice.toLocaleString()} VNĐ</p>
+            </div>
+          ) : (
+            <p>Đang tải thông tin khách hàng...</p>
+          )}
         </Modal>
       </div>
     </Content>

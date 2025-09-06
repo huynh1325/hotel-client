@@ -20,6 +20,10 @@ const router = createBrowserRouter([
             index: true,
             element: <Room />,
           },
+          {
+            index: true,
+            element: <Room />,
+          },
         ],
       },
     ],
