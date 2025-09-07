@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Layout, Card, Row, Col, Table } from "antd";
 import { toast } from "react-toastify";
-import { getAllRooms, getAllBookings } from "../utils/api";
+import { getAllRooms, getBookingCheckedOut } from "../utils/api";
 import dayjs from "dayjs";
 import {
   LineChart,
@@ -24,7 +24,7 @@ const Statistics = () => {
     const fetchData = async () => {
       try {
         const roomRes = await getAllRooms();
-        const bookingRes = await getAllBookings();
+        const bookingRes = await getBookingCheckedOut();
 
         setRooms(roomRes || []);
         setBookings(bookingRes || []);
@@ -81,7 +81,6 @@ const Statistics = () => {
       <div style={{ background: "#fff", padding: 20, borderRadius: 8, minHeight: 500 }}>
         <h2 style={{ marginBottom: 20 }}>Thống kê hệ thống</h2>
 
-        {/* Cards thống kê */}
         <Row gutter={16} style={{ marginBottom: 20 }}>
           <Col span={6}>
             <Card title="Tổng số phòng" bordered>

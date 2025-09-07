@@ -196,7 +196,9 @@ const Room = () => {
           return;
         }
 
-      await checkoutRoomApinpm(checkoutRoom._id, currentBooking._id);
+      await checkoutRoomApi(checkoutRoom._id, currentBooking._id);
+
+      console.log(checkoutRoom._id, currentBooking._id);
 
       toast.success(`Checkout phòng ${checkoutRoom.roomNumber} thành công`);
       setRooms((prev) =>

@@ -7,12 +7,13 @@ import {
 } from "antd";
 import {
   HomeOutlined,
-  AppstoreOutlined,
   UserOutlined,
   MenuUnfoldOutlined,
   MenuFoldOutlined,
+  BarChartOutlined,
+  HistoryOutlined
 } from "@ant-design/icons";
-import { Outlet } from "react-router-dom";
+import { Outlet, Link } from "react-router-dom";
 
 const { Header, Sider, Content } = Layout;
 
@@ -35,10 +36,13 @@ const LayoutAdmin = () => {
         </div>
         <Menu theme="dark" mode="inline" defaultSelectedKeys={["1"]}>
           <Menu.Item key="1" icon={<HomeOutlined />}>
-            Phòng
+            <Link to="/">Phòng</Link>
           </Menu.Item>
-          <Menu.Item key="2" icon={<AppstoreOutlined />}>
-            Dịch vụ
+          <Menu.Item key="2" icon={<BarChartOutlined />}>
+            <Link to="/statistics">Thống kê</Link>
+          </Menu.Item>
+          <Menu.Item key="3" icon={<HistoryOutlined />}>
+            <Link to="/bookinghistory">Lịch sử đặt phòng</Link>
           </Menu.Item>
         </Menu>
       </Sider>
