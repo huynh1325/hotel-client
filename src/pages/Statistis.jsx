@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { Layout, Card, Row, Col, Table } from "antd";
+import { Layout, Card, Row, Col } from "antd";
 import { toast } from "react-toastify";
 import { getAllRooms, getBookingCheckedOut } from "../utils/api";
 import dayjs from "dayjs";
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   CartesianGrid,
   XAxis,
   YAxis,
-  Tooltip,
   ResponsiveContainer,
+  LabelList,
 } from "recharts";
 
 const { Content } = Layout;
@@ -19,6 +19,7 @@ const Statistics = () => {
   const [rooms, setRooms] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [revenueData, setRevenueData] = useState([]);
+  const [monthlyRevenue, setMonthlyRevenue] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -29,18 +30,38 @@ const Statistics = () => {
         setRooms(roomRes || []);
         setBookings(bookingRes || []);
 
+        // Doanh thu theo ngày
         const grouped = {};
         bookingRes.forEach((b) => {
           const date = dayjs(b.checkOutDate).format("DD/MM");
           grouped[date] = (grouped[date] || 0) + (b.totalPrice || 0);
         });
 
-        const chartData = Object.keys(grouped).map((date) => ({
-          date,
-          revenue: grouped[date],
-        }));
+        // Tạo đủ 10 ngày gần nhất
+        const last10Days = [];
+        for (let i = 9; i >= 0; i--) {
+          const d = dayjs().subtract(i, "day");
+          const dateStr = d.format("DD/MM");
+          last10Days.push({
+            date: dateStr,
+            revenue: grouped[dateStr] || 0,
+          });
+        }
 
-        setRevenueData(chartData);
+        setRevenueData(last10Days);
+
+        // Tính tổng doanh thu tháng hiện tại
+        const currentMonth = dayjs().month();
+        const currentYear = dayjs().year();
+        const monthlyTotal = bookingRes
+          .filter(
+            (b) =>
+              dayjs(b.checkOutDate).month() === currentMonth &&
+              dayjs(b.checkOutDate).year() === currentYear
+          )
+          .reduce((sum, b) => sum + (b.totalPrice || 0), 0);
+
+        setMonthlyRevenue(monthlyTotal);
       } catch (err) {
         toast.error("Lỗi khi tải dữ liệu thống kê!");
       }
@@ -51,34 +72,17 @@ const Statistics = () => {
   const totalRooms = rooms.length;
   const bookedRooms = rooms.filter((r) => r.status === "booked").length;
   const availableRooms = rooms.filter((r) => r.status === "available").length;
-  const totalRevenue = bookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0);
-
-  const columns = [
-    { title: "Tên khách", dataIndex: "customerName", key: "customerName" },
-    { title: "Phòng", dataIndex: "roomNumber", key: "roomNumber" },
-    {
-      title: "Check-in",
-      dataIndex: "checkInDate",
-      key: "checkInDate",
-      render: (val) => dayjs(val).format("DD/MM/YYYY HH:mm"),
-    },
-    {
-      title: "Check-out",
-      dataIndex: "checkOutDate",
-      key: "checkOutDate",
-      render: (val) => dayjs(val).format("DD/MM/YYYY HH:mm"),
-    },
-    {
-      title: "Tổng tiền",
-      dataIndex: "totalPrice",
-      key: "totalPrice",
-      render: (val) => val.toLocaleString() + " VNĐ",
-    },
-  ];
 
   return (
     <Content style={{ margin: "16px" }}>
-      <div style={{ background: "#fff", padding: 20, borderRadius: 8, minHeight: 500 }}>
+      <div
+        style={{
+          background: "#fff",
+          padding: 20,
+          borderRadius: 8,
+          minHeight: 500,
+        }}
+      >
         <h2 style={{ marginBottom: 20 }}>Thống kê hệ thống</h2>
 
         <Row gutter={16} style={{ marginBottom: 20 }}>
@@ -98,30 +102,27 @@ const Statistics = () => {
             </Card>
           </Col>
           <Col span={6}>
-            <Card title="Tổng doanh thu" bordered>
-              {totalRevenue.toLocaleString()} VNĐ
+            <Card title="Doanh thu tháng hiện tại" bordered>
+              {monthlyRevenue.toLocaleString()} VNĐ
             </Card>
           </Col>
         </Row>
 
-        <h3>Doanh thu theo ngày</h3>
+        <h3>Doanh thu 10 ngày gần nhất</h3>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={revenueData}>
-            <Line type="monotone" dataKey="revenue" stroke="#8884d8" />
+          <BarChart data={revenueData}>
             <CartesianGrid stroke="#ccc" />
             <XAxis dataKey="date" />
             <YAxis />
-            <Tooltip />
-          </LineChart>
+            <Bar dataKey="revenue" fill="#82ca9d">
+              <LabelList
+                dataKey="revenue"
+                position="top"
+                formatter={(value) => (value > 0 ? value.toLocaleString() : "")}
+              />
+            </Bar>
+          </BarChart>
         </ResponsiveContainer>
-
-        <h3 style={{ marginTop: 20 }}>Danh sách booking</h3>
-        <Table
-          rowKey="_id"
-          columns={columns}
-          dataSource={bookings}
-          pagination={{ pageSize: 5 }}
-        />
       </div>
     </Content>
   );

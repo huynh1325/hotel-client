@@ -28,7 +28,9 @@ const Room = () => {
   const [isCheckoutModalVisible, setIsCheckoutModalVisible] = useState(false);
   const [checkoutRoom, setCheckoutRoom] = useState(null);
   const [currentBooking, setCurrentBooking] = useState(null);
-
+  const [defaultCheckoutTime, setDefaultCheckoutTime] = useState(null);
+  const [prevStayTime, setPrevStayTime] = useState([null, null]);
+  
   useEffect(() => {
     const fetchRooms = async () => {
       try {
@@ -96,27 +98,30 @@ const Room = () => {
   const handleRoomClick = async (room) => {
     if (room.status === "available") {
       setSelectedRoom(room);
-
       setSelectedRoomType(0);
-    
-      setStayType("daily");
+      setStayType("daily"); // mặc định
 
-      const today = dayjs();
-      const checkin = today.hour(14).minute(0).second(0);
-      const checkout = checkin.add(1, "day").hour(12).minute(0).second(0);
+      const now = dayjs();
+      // giữ mặc định checkout giống trước: +1 ngày lúc 12:00
+      const defaultCheckout = now.add(1, "day").hour(12).minute(0).second(0);
 
       form.setFieldsValue({
         stayType: "daily",
-        stayTime: [checkin, checkout],
+        stayTime: [now, defaultCheckout],
         numOfDays: 1,
+        duration: null,
       });
+
+      // lưu mặc định để khi user thay check-in ta vẫn giữ giờ check-out (12:00)
+      setDefaultCheckoutTime(defaultCheckout);
+      setPrevStayTime([now, defaultCheckout]);
 
       updatePriceForRoom(room, "daily", 1, selectedRoomType ?? 0);
       setIsModalVisible(true);
     } else if (room.status === "booked") {
-        try {
-          const booking = await getCurrentBookingByRoom(room._id);
-          if (booking) {
+      try {
+        const booking = await getCurrentBookingByRoom(room._id);
+        if (booking) {
           setCurrentBooking(booking);
           setCheckoutRoom(room);
           setIsCheckoutModalVisible(true);
@@ -135,26 +140,91 @@ const Room = () => {
     const type = e.target.value;
     setStayType(type);
 
-    const today = dayjs();
-    let checkin, checkout;
-
-    if (type === "daily") {
-      checkin = today.hour(14).minute(0).second(0);
-      checkout = checkin.add(1, "day").hour(12).minute(0).second(0);
-      form.setFieldsValue({ stayTime: [checkin, checkout], numOfDays: 1 });
-      updatePriceForRoom(selectedRoom, "daily", 1, selectedRoomType ?? 0);
-    } else if (type === "overnight") {
-      checkin = today.hour(19).minute(0).second(0);
-      checkout = checkin.add(1, "day").hour(12).minute(0).second(0);
-      form.setFieldsValue({ stayTime: [checkin, checkout], numOfDays: 1 });
-      updatePriceForRoom(selectedRoom, "overnight", 1, selectedRoomType ?? 0);
+    const now = dayjs();
+    if (type === "daily" || type === "overnight") {
+      const defaultCheckout = now.add(1, "day").hour(12).minute(0).second(0);
+      form.setFieldsValue({
+        stayTime: [now, defaultCheckout],
+        numOfDays: 1,
+        duration: null,
+      });
+      setDefaultCheckoutTime(defaultCheckout);
+      setPrevStayTime([now, defaultCheckout]);
+      updatePriceForRoom(selectedRoom, type, 1, selectedRoomType ?? 0);
     } else {
-      checkin = today;
-      checkout = today.add(1, "hour");
-      form.setFieldsValue({ stayTime: [checkin, checkout], duration: 1 });
+      const defaultCheckout = now.add(1, "hour");
+      form.setFieldsValue({
+        stayTime: [now, defaultCheckout],
+        duration: 1,
+        numOfDays: null,
+      });
+      setDefaultCheckoutTime(defaultCheckout);
+      setPrevStayTime([now, defaultCheckout]);
       updatePriceForRoom(selectedRoom, "hourly", 1, selectedRoomType ?? 0);
     }
   };
+
+  const handleStayTimeChange = (values) => {
+  if (!values || !values[0]) {
+    form.setFieldsValue({ stayTime: values });
+    setPrevStayTime(values || [null, null]);
+    return;
+  }
+
+  const [newStart, newEnd] = values;
+  const [prevStart, prevEnd] = prevStayTime;
+
+  const startChanged = !prevStart || !newStart.isSame(prevStart);
+  const endChanged = newEnd && prevEnd && !newEnd.isSame(prevEnd);
+
+  if (startChanged && !endChanged) {
+    if (defaultCheckoutTime) {
+      const dayDiff = prevStart && prevEnd ? prevEnd.startOf('day').diff(prevStart.startOf('day'), 'day') : 1;
+      let candidate = newStart.clone().add(dayDiff, 'day')
+        .hour(defaultCheckoutTime.hour())
+        .minute(defaultCheckoutTime.minute())
+        .second(defaultCheckoutTime.second());
+
+      if (!candidate.isAfter(newStart)) {
+        candidate = candidate.add(1, 'day');
+      }
+
+      form.setFieldsValue({ stayTime: [newStart, candidate] });
+      setPrevStayTime([newStart, candidate]);
+
+      if (stayType === "hourly") {
+        const hours = candidate.diff(newStart, "hour");
+        form.setFieldsValue({ duration: hours || 1 });
+        updatePriceForRoom(selectedRoom, "hourly", hours || 1, selectedRoomType ?? 0);
+      } else {
+        const days = Math.max(1, candidate.startOf("day").diff(newStart.startOf("day"), "day"));
+        form.setFieldsValue({ numOfDays: days });
+        updatePriceForRoom(selectedRoom, stayType || "daily", days, selectedRoomType ?? 0);
+      }
+    } else {
+      const fallbackEnd = newEnd || newStart.clone().add(1, 'day');
+      form.setFieldsValue({ stayTime: [newStart, fallbackEnd] });
+      setPrevStayTime([newStart, fallbackEnd]);
+    }
+  } else if (endChanged) {
+    form.setFieldsValue({ stayTime: [newStart, newEnd] });
+    setDefaultCheckoutTime(newEnd);
+    setPrevStayTime([newStart, newEnd]);
+
+    if (stayType === "hourly") {
+      const hours = newEnd.diff(newStart, "hour");
+      form.setFieldsValue({ duration: hours || 1 });
+      updatePriceForRoom(selectedRoom, "hourly", hours || 1, selectedRoomType ?? 0);
+    } else {
+      const days = Math.max(1, newEnd.startOf("day").diff(newStart.startOf("day"), "day"));
+      form.setFieldsValue({ numOfDays: days });
+      updatePriceForRoom(selectedRoom, stayType || "daily", days, selectedRoomType ?? 0);
+    }
+  } else {
+    form.setFieldsValue({ stayTime: [newStart, newEnd] });
+    setPrevStayTime([newStart, newEnd]);
+  }
+};
 
   const handleNumOfDaysChange = (value) => {
     const type = stayType;
@@ -442,6 +512,7 @@ const Room = () => {
                 showTime={{ format: "HH:mm" }}
                 format="DD/MM/YYYY HH:mm"
                 style={{ width: "100%" }}
+                onChange={handleStayTimeChange}
               />
             </Form.Item>
 
