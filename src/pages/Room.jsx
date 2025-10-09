@@ -387,15 +387,31 @@ const Room = () => {
                 <div style={{
                   fontSize: 16,
                   fontWeight: "bold",
-                  marginBottom: "5px"
+                  marginBottom: "8px"
                   }}>P{room.roomNumber}</div>
                 <div style={{ fontSize: 14 }}>
                   {room.roomType && room.roomType.length > 0
-                    ? room.roomType.map((rt) => rt.name).join(" + ")
+                    ? (() => {
+                        const baseName = room.roomType[0].name.replace(/\s*\(.*?\)/, "");
+                        const details = room.roomType
+                          .map(rt => rt.name.match(/\((.*?)\)/)?.[1])
+                          .filter(Boolean)
+                          .join(", ");
+
+                        return details ? `${baseName} (${details})` : baseName;
+                      })()
                     : "N/A"}
                 </div>
                 <div style={{ fontSize: 14 }}>
-                  {room.status === "available" ? "Đang chờ" : room.status}
+                  <div style={{ fontSize: 14 }}>
+                    {room.status === "available"
+                      ? "Đang chờ"
+                      : room.status === "booked"
+                      ? "Đã đặt"
+                      : room.status === "cleaning"
+                      ? "Đang dọn"
+                      : room.status}
+                  </div>
                 </div>
               </Card>
             ))}
