@@ -20,11 +20,6 @@ export const getBookingCheckedOut = () => {
   return axios.get("/api/v1/booking/checkedout");
 };
 
-export const loginApi = async (name, password) => {
-  try {
-    const response = await axios.post("/api/v1/auth/login", { name, password });
-    return response.data;
-  } catch (error) {
-    return error.response?.data || { statusCode: 500, message: "Server error" };
-  }
+export const loginApi = (name, password) => {
+  return axios.post("/api/v1/auth/login", { name, password });
 };

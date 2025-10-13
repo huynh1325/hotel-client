@@ -2,30 +2,30 @@ import React, { useState } from "react";
 import { Form, Input, Button, Card } from "antd";
 import { toast } from "react-toastify";
 import { loginApi } from "../utils/api";
+import { useNavigate } from "react-router-dom";
 
 const Login = () => {
 
-    const onFinish = async (values) => {
-        const res = await loginApi(values.name, values.password);
+  const navigate = useNavigate();
 
-        console.log("Login response:", res);
+  const onFinish = async (values) => {
+    try {
+      const res = await loginApi(values.name, values.password);
 
-        if (res.statusCode) {
-            if (res.statusCode === 401) {
-            toast.error("Sai tài khoản hoặc mật khẩu");
-            } else {
-            toast.error(res.message || "Đăng nhập thất bại");
-            }
-            return;
-        }
-
+      if (res?.access_token && res?.user) {
         localStorage.setItem("access_token", res.access_token);
         sessionStorage.setItem("user", JSON.stringify(res.user));
 
         toast.success("Đăng nhập thành công");
-        window.location.href = "/";
-    };
-
+        navigate("/", { replace: true });
+      } else {
+        throw new Error("Thiếu access_token hoặc user trong phản hồi");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+  
     return (
         <div className="flex justify-center items-center h-screen bg-gray-100">
             <Card title="Login" style={{ width: 400 }}>
