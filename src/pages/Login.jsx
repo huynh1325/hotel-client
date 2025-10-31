@@ -1,11 +1,10 @@
-import React, { useState } from "react";
+import React from "react";
 import { Form, Input, Button, Card } from "antd";
 import { toast } from "react-toastify";
 import { loginApi } from "../utils/api";
 import { useNavigate } from "react-router-dom";
 
 const Login = () => {
-
   const navigate = useNavigate();
 
   const onFinish = async (values) => {
@@ -19,40 +18,59 @@ const Login = () => {
         toast.success("Đăng nhập thành công");
         navigate("/", { replace: true });
       } else {
-        throw new Error("Thiếu access_token hoặc user trong phản hồi");
+        toast.error("Sai tài khoản hoặc mật khẩu");
       }
     } catch (err) {
+      toast.error("Lỗi đăng nhập");
       console.error(err);
     }
   };
-  
-    return (
-        <div className="flex justify-center items-center h-screen bg-gray-100">
-            <Card title="Login" style={{ width: 400 }}>
-                <Form layout="vertical" onFinish={onFinish}>
-                <Form.Item
-                    label="Name"
-                    name="name"
-                    rules={[{ required: true, message: "Please input your name!" }]}
-                >
-                    <Input />
-                </Form.Item>
-                <Form.Item
-                    label="Password"
-                    name="password"
-                    rules={[{ required: true, message: "Please input your password!" }]}
-                >
-                    <Input.Password />
-                </Form.Item>
-                <Form.Item>
-                    <Button type="primary" htmlType="submit" block>
-                    Login
-                    </Button>
-                </Form.Item>
-                </Form>
-            </Card>
-        </div>
-    );
+
+  return (
+    <div
+      style={{
+        height: "100vh",
+        width: "100vw",
+        backgroundColor: "#f5f5f5",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <Card
+        title="Đăng nhập"
+        style={{
+          width: 400,
+          borderRadius: 8,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+        }}
+      >
+        <Form layout="vertical" onFinish={onFinish}>
+          <Form.Item
+            label="Tên đăng nhập"
+            name="name"
+            rules={[{ required: true, message: "Vui lòng nhập tên đăng nhập!" }]}
+          >
+            <Input />
+          </Form.Item>
+
+          <Form.Item
+            label="Mật khẩu"
+            name="password"
+            rules={[{ required: true, message: "Vui lòng nhập mật khẩu!" }]}
+          >
+            <Input.Password />
+          </Form.Item>
+
+          <Form.Item>
+            <Button type="primary" htmlType="submit" block>
+              Đăng nhập
+            </Button>
+          </Form.Item>
+        </Form>
+      </Card>
+    </div>
+  );
 };
 
 export default Login;

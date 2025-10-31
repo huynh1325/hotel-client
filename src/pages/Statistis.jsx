@@ -30,14 +30,12 @@ const Statistics = () => {
         setRooms(roomRes || []);
         setBookings(bookingRes || []);
 
-        // Doanh thu theo ngày
         const grouped = {};
         bookingRes.forEach((b) => {
           const date = dayjs(b.checkOutDate).format("DD/MM");
           grouped[date] = (grouped[date] || 0) + (b.totalPrice || 0);
         });
 
-        // Tạo đủ 10 ngày gần nhất
         const last10Days = [];
         for (let i = 9; i >= 0; i--) {
           const d = dayjs().subtract(i, "day");
@@ -50,7 +48,6 @@ const Statistics = () => {
 
         setRevenueData(last10Days);
 
-        // Tính tổng doanh thu tháng hiện tại
         const currentMonth = dayjs().month();
         const currentYear = dayjs().year();
         const monthlyTotal = bookingRes

@@ -30,6 +30,8 @@ const Room = () => {
   const [currentBooking, setCurrentBooking] = useState(null);
   const [defaultCheckoutTime, setDefaultCheckoutTime] = useState(null);
   const [prevStayTime, setPrevStayTime] = useState([null, null]);
+  const [isCleaningModalVisible, setIsCleaningModalVisible] = useState(false);
+  const [cleaningRoom, setCleaningRoom] = useState(null);
   
   useEffect(() => {
     const fetchRooms = async () => {
@@ -47,9 +49,7 @@ const Room = () => {
     switch (status) {
       case "available":
         return "#d5d5d5ff";
-        // return "#95de64";
       case "booked":
-        // return "#d9d9d9";
         return "#95de64";
       case "cleaning":
         return "#ff7875";
@@ -99,10 +99,9 @@ const Room = () => {
     if (room.status === "available") {
       setSelectedRoom(room);
       setSelectedRoomType(0);
-      setStayType("daily"); // mặc định
+      setStayType("daily");
 
       const now = dayjs();
-      // giữ mặc định checkout giống trước: +1 ngày lúc 12:00
       const defaultCheckout = now.add(1, "day").hour(12).minute(0).second(0);
 
       form.setFieldsValue({
@@ -112,7 +111,6 @@ const Room = () => {
         duration: null,
       });
 
-      // lưu mặc định để khi user thay check-in ta vẫn giữ giờ check-out (12:00)
       setDefaultCheckoutTime(defaultCheckout);
       setPrevStayTime([now, defaultCheckout]);
 
@@ -131,6 +129,9 @@ const Room = () => {
       } catch (err) {
         toast.error("Lỗi khi lấy thông tin booking!");
       }
+    } else if (room.status === "cleaning") {
+        setCleaningRoom(room);
+        setIsCleaningModalVisible(true);
     } else {
       toast.error(`Phòng ${room.roomNumber} hiện đang ${room.status}`);
     }
@@ -273,7 +274,7 @@ const Room = () => {
       toast.success(`Checkout phòng ${checkoutRoom.roomNumber} thành công`);
       setRooms((prev) =>
         prev.map((r) =>
-          r._id === checkoutRoom._id ? { ...r, status: "available" } : r
+          r._id === checkoutRoom._id ? { ...r, status: "cleaning" } : r
         )
       );
       setIsCheckoutModalVisible(false);
@@ -281,6 +282,20 @@ const Room = () => {
     } catch (error) {
       toast.error(error.message || "Checkout thất bại!");
     }
+  };
+
+  const handleCleaningDone = () => {
+    if (!cleaningRoom) return;
+
+    setRooms((prev) =>
+      prev.map((r) =>
+        r._id === cleaningRoom._id ? { ...r, status: "available" } : r
+      )
+    );
+
+    setIsCleaningModalVisible(false);
+    setCleaningRoom(null);
+    toast.success(`Phòng ${cleaningRoom.roomNumber} đã sẵn sàng`);
   };
 
   const handleCancel = () => {
@@ -577,6 +592,19 @@ const Room = () => {
           ) : (
             <p>Đang tải thông tin khách hàng...</p>
           )}
+        </Modal>
+        <Modal
+          title={`Phòng ${cleaningRoom?.roomNumber} đang dọn`}
+          open={isCleaningModalVisible}
+          onOk={handleCleaningDone}
+          onCancel={() => {
+            setIsCleaningModalVisible(false);
+            setCleaningRoom(null);
+          }}
+          okText="Đã dọn xong"
+          cancelText="Hủy"
+        >
+          <p>Bạn có chắc chắn phòng đã được dọn xong và sẵn sàng cho khách tiếp theo không?</p>
         </Modal>
       </div>
     </Content>
