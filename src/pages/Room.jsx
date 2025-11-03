@@ -37,9 +37,14 @@ const Room = () => {
     const fetchRooms = async () => {
       try {
         const res = await getAllRooms();
-        if (res) setRooms(res);
+        if (res?.data && Array.isArray(res.data)) {
+          setRooms(res.data);
+        } else {
+          setRooms([]);
+        }
       } catch (error) {
         toast.error("Lỗi khi tải danh sách phòng!");
+        setRooms([]);
       }
     };
     fetchRooms();
@@ -71,27 +76,23 @@ const Room = () => {
 
     let total = 0;
 
-    switch (type) {
-      case "daily":
-        total = getPrice("daily") * value;
-        break;
-
-      case "hourly":
-        total = getPrice("hourly") * value;
-        break;
-
-      case "overnight":
-        if (value <= 1) {
-          total = getPrice("overnight");
-        } else {
-          total = getPrice("overnight") + getPrice("daily") * (value - 1);
-        }
-        break;
-
-      default:
-        total = 0;
+  switch (type) {
+    case "daily":
+      total = (getPrice("daily") || 0) * (value || 0);
+      break;
+    case "hourly":
+      total = (getPrice("hourly") || 0) * (value || 0);
+      break;
+    case "overnight":
+      if ((value || 0) <= 1) {
+        total = getPrice("overnight") || 0;
+      } else {
+        total = (getPrice("overnight") || 0) + (getPrice("daily") || 0) * ((value || 0) - 1);
+      }
+      break;
+    default:
+      total = 0;
     }
-
     setCalculatedPrice(total);
   };
 
@@ -119,14 +120,15 @@ const Room = () => {
     } else if (room.status === "booked") {
       try {
         const booking = await getCurrentBookingByRoom(room._id);
-        if (booking) {
-          setCurrentBooking(booking);
-          setCheckoutRoom(room);
+        if (booking.data) {
+          setCurrentBooking(booking.data);
+          setCheckoutRoom(room._id);
           setIsCheckoutModalVisible(true);
         } else {
           toast.error("Không tìm thấy booking nào cho phòng này!");
         }
       } catch (err) {
+         console.error(err)
         toast.error("Lỗi khi lấy thông tin booking!");
       }
     } else if (room.status === "cleaning") {
@@ -269,8 +271,6 @@ const Room = () => {
 
       await checkoutRoomApi(checkoutRoom._id, currentBooking._id);
 
-      console.log(checkoutRoom._id, currentBooking._id);
-
       toast.success(`Checkout phòng ${checkoutRoom.roomNumber} thành công`);
       setRooms((prev) =>
         prev.map((r) =>
@@ -360,6 +360,10 @@ const Room = () => {
   };
 
   const renderFloors = () => {
+    if (!Array.isArray(rooms) || rooms.length === 0) {
+      return <p>Không có dữ liệu phòng để hiển thị</p>;
+    }
+
     const grouped = rooms.reduce((acc, room) => {
       acc[room.floor] = acc[room.floor] || [];
       acc[room.floor].push(room);
@@ -559,7 +563,10 @@ const Room = () => {
             </Form.Item>
 
             <Form.Item label="Tổng tiền (VNĐ)">
-              <Input value={calculatedPrice.toLocaleString()} disabled />
+              <Input
+                value={typeof calculatedPrice === "number" && !isNaN(calculatedPrice) ? calculatedPrice.toLocaleString() : "0"}
+                disabled
+              />
             </Form.Item>
           </Form>
         </Modal>
@@ -587,7 +594,7 @@ const Room = () => {
               <p><b>Loại hình thuê:</b> {stayTypeLabels[currentBooking.stayType] || currentBooking.stayType}</p>
               <p><b>Số ngày/Giờ thuê:</b> {currentBooking.rentalsDays}</p>
               <p><b>Phương thức thanh toán:</b> {paymentMethodLabels[currentBooking.paymentMethod] || currentBooking.paymentMethod}</p>
-              <p><b>Tổng tiền:</b> {currentBooking.totalPrice.toLocaleString()} VNĐ</p>
+              <p><b>Tổng tiền:</b> {currentBooking.totalPrice != null ? currentBooking.totalPrice.toLocaleString() : 0} VNĐ</p>
             </div>
           ) : (
             <p>Đang tải thông tin khách hàng...</p>

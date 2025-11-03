@@ -24,10 +24,21 @@ const BookingHistory = () => {
     const fetchBookings = async () => {
       try {
         const bookingRes = await getBookingCheckedOut();
-        setBookings(bookingRes || []);
-        setFilteredBookings(bookingRes || []);
+
+        if (Array.isArray(bookingRes)) {
+          setBookings(bookingRes);
+          setFilteredBookings(bookingRes);
+        } else if (bookingRes?.data && Array.isArray(bookingRes.data)) {
+          setBookings(bookingRes.data);
+          setFilteredBookings(bookingRes.data);
+        } else {
+          setBookings([]);
+          setFilteredBookings([]);
+        }
       } catch (err) {
         toast.error("Lỗi khi tải lịch sử booking!");
+        setBookings([]);
+        setFilteredBookings([]);
       }
     };
     fetchBookings();
@@ -137,7 +148,7 @@ const BookingHistory = () => {
         <Table
             rowKey="_id"
             columns={columns}
-            dataSource={filteredBookings}
+            dataSource={Array.isArray(filteredBookings) ? filteredBookings : []}
             pagination={{ pageSize: 10 }}
             onRow={(record) => {
                 return {

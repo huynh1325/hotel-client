@@ -11,9 +11,9 @@ const Login = () => {
     try {
       const res = await loginApi(values.name, values.password);
 
-      if (res?.access_token && res?.user) {
-        localStorage.setItem("access_token", res.access_token);
-        sessionStorage.setItem("user", JSON.stringify(res.user));
+      if (res.data?.access_token && res.data?.user) {
+        localStorage.setItem("access_token", res.data.access_token);
+        sessionStorage.setItem("user", JSON.stringify(res.data.user));
 
         toast.success("Đăng nhập thành công");
         navigate("/", { replace: true });
