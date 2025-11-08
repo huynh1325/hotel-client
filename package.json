@@ -12,6 +12,7 @@
   "dependencies": {
     "@ant-design/icons": "^6.0.0",
     "antd": "^5.27.0",
+    "async-mutex": "^0.5.0",
     "axios": "^1.11.0",
     "classnames": "^2.5.1",
     "dayjs": "^1.11.18",

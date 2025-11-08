@@ -23,3 +23,7 @@ export const getBookingCheckedOut = () => {
 export const loginApi = (name, password) => {
   return axios.post("/api/v1/auth/login", { name, password });
 };
+
+export const refreshToken = () => {
+  return axios.post("/api/v1/auth/refresh");
+};

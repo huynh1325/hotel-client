@@ -30,14 +30,21 @@ const Room = () => {
   const [currentBooking, setCurrentBooking] = useState(null);
   const [defaultCheckoutTime, setDefaultCheckoutTime] = useState(null);
   const [prevStayTime, setPrevStayTime] = useState([null, null]);
+  const [isCleaningModalVisible, setIsCleaningModalVisible] = useState(false);
+  const [cleaningRoom, setCleaningRoom] = useState(null);
   
   useEffect(() => {
     const fetchRooms = async () => {
       try {
         const res = await getAllRooms();
-        if (res) setRooms(res);
+        if (res?.data && Array.isArray(res.data)) {
+          setRooms(res.data);
+        } else {
+          setRooms([]);
+        }
       } catch (error) {
         toast.error("Lỗi khi tải danh sách phòng!");
+        setRooms([]);
       }
     };
     fetchRooms();
@@ -47,9 +54,7 @@ const Room = () => {
     switch (status) {
       case "available":
         return "#d5d5d5ff";
-        // return "#95de64";
       case "booked":
-        // return "#d9d9d9";
         return "#95de64";
       case "cleaning":
         return "#ff7875";
@@ -71,27 +76,23 @@ const Room = () => {
 
     let total = 0;
 
-    switch (type) {
-      case "daily":
-        total = getPrice("daily") * value;
-        break;
-
-      case "hourly":
-        total = getPrice("hourly") * value;
-        break;
-
-      case "overnight":
-        if (value <= 1) {
-          total = getPrice("overnight");
-        } else {
-          total = getPrice("overnight") + getPrice("daily") * (value - 1);
-        }
-        break;
-
-      default:
-        total = 0;
+  switch (type) {
+    case "daily":
+      total = (getPrice("daily") || 0) * (value || 0);
+      break;
+    case "hourly":
+      total = (getPrice("hourly") || 0) * (value || 0);
+      break;
+    case "overnight":
+      if ((value || 0) <= 1) {
+        total = getPrice("overnight") || 0;
+      } else {
+        total = (getPrice("overnight") || 0) + (getPrice("daily") || 0) * ((value || 0) - 1);
+      }
+      break;
+    default:
+      total = 0;
     }
-
     setCalculatedPrice(total);
   };
 
@@ -99,10 +100,9 @@ const Room = () => {
     if (room.status === "available") {
       setSelectedRoom(room);
       setSelectedRoomType(0);
-      setStayType("daily"); // mặc định
+      setStayType("daily");
 
       const now = dayjs();
-      // giữ mặc định checkout giống trước: +1 ngày lúc 12:00
       const defaultCheckout = now.add(1, "day").hour(12).minute(0).second(0);
 
       form.setFieldsValue({
@@ -112,7 +112,6 @@ const Room = () => {
         duration: null,
       });
 
-      // lưu mặc định để khi user thay check-in ta vẫn giữ giờ check-out (12:00)
       setDefaultCheckoutTime(defaultCheckout);
       setPrevStayTime([now, defaultCheckout]);
 
@@ -129,8 +128,12 @@ const Room = () => {
           toast.error("Không tìm thấy booking nào cho phòng này!");
         }
       } catch (err) {
+         console.error(err)
         toast.error("Lỗi khi lấy thông tin booking!");
       }
+    } else if (room.status === "cleaning") {
+        setCleaningRoom(room);
+        setIsCleaningModalVisible(true);
     } else {
       toast.error(`Phòng ${room.roomNumber} hiện đang ${room.status}`);
     }
@@ -270,12 +273,10 @@ const Room = () => {
 
       await checkoutRoomApi(checkoutRoom._id, currentBookingData._id);
 
-      console.log(checkoutRoom._id, currentBooking._id);
-
       toast.success(`Checkout phòng ${checkoutRoom.roomNumber} thành công`);
       setRooms((prev) =>
         prev.map((r) =>
-          r._id === checkoutRoom._id ? { ...r, status: "available" } : r
+          r._id === checkoutRoom._id ? { ...r, status: "cleaning" } : r
         )
       );
       setIsCheckoutModalVisible(false);
@@ -283,6 +284,20 @@ const Room = () => {
     } catch (error) {
       toast.error(error.message || "Checkout thất bại!");
     }
+  };
+
+  const handleCleaningDone = () => {
+    if (!cleaningRoom) return;
+
+    setRooms((prev) =>
+      prev.map((r) =>
+        r._id === cleaningRoom._id ? { ...r, status: "available" } : r
+      )
+    );
+
+    setIsCleaningModalVisible(false);
+    setCleaningRoom(null);
+    toast.success(`Phòng ${cleaningRoom.roomNumber} đã sẵn sàng`);
   };
 
   const handleCancel = () => {
@@ -347,6 +362,10 @@ const Room = () => {
   };
 
   const renderFloors = () => {
+    if (!Array.isArray(rooms) || rooms.length === 0) {
+      return <p>Không có dữ liệu phòng để hiển thị</p>;
+    }
+
     const grouped = rooms.reduce((acc, room) => {
       acc[room.floor] = acc[room.floor] || [];
       acc[room.floor].push(room);
@@ -546,7 +565,10 @@ const Room = () => {
             </Form.Item>
 
             <Form.Item label="Tổng tiền (VNĐ)">
-              <Input value={calculatedPrice.toLocaleString()} disabled />
+              <Input
+                value={typeof calculatedPrice === "number" && !isNaN(calculatedPrice) ? calculatedPrice.toLocaleString() : "0"}
+                disabled
+              />
             </Form.Item>
           </Form>
         </Modal>
@@ -574,11 +596,24 @@ const Room = () => {
               <p><b>Loại hình thuê:</b> {stayTypeLabels[currentBooking.stayType] || currentBooking.stayType}</p>
               <p><b>Số ngày/Giờ thuê:</b> {currentBooking.rentalsDays}</p>
               <p><b>Phương thức thanh toán:</b> {paymentMethodLabels[currentBooking.paymentMethod] || currentBooking.paymentMethod}</p>
-              <p><b>Tổng tiền:</b> {currentBooking.totalPrice.toLocaleString()} VNĐ</p>
+              <p><b>Tổng tiền:</b> {currentBooking.totalPrice != null ? currentBooking.totalPrice.toLocaleString() : 0} VNĐ</p>
             </div>
           ) : (
             <p>Đang tải thông tin khách hàng...</p>
           )}
+        </Modal>
+        <Modal
+          title={`Phòng ${cleaningRoom?.roomNumber} đang dọn`}
+          open={isCleaningModalVisible}
+          onOk={handleCleaningDone}
+          onCancel={() => {
+            setIsCleaningModalVisible(false);
+            setCleaningRoom(null);
+          }}
+          okText="Đã dọn xong"
+          cancelText="Hủy"
+        >
+          <p>Bạn có chắc chắn phòng đã được dọn xong và sẵn sàng cho khách tiếp theo không?</p>
         </Modal>
       </div>
     </Content>

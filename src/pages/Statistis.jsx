@@ -27,17 +27,29 @@ const Statistics = () => {
         const roomRes = await getAllRooms();
         const bookingRes = await getBookingCheckedOut();
 
-        setRooms(roomRes || []);
-        setBookings(bookingRes || []);
+        const roomList = Array.isArray(roomRes?.data || roomRes)
+          ? roomRes?.data || roomRes
+          : [];
+        const bookingList = Array.isArray(bookingRes?.data || bookingRes)
+          ? bookingRes?.data || bookingRes
+          : [];
 
-        // Doanh thu theo ngày
+        setRooms(roomList);
+        setBookings(bookingList);
+
+        if (bookingList.length === 0) {
+          setRevenueData([]);
+          setMonthlyRevenue(0);
+          return;
+        }
+
         const grouped = {};
-        bookingRes.forEach((b) => {
+        bookingList.forEach((b) => {
+          if (!b.checkOutDate) return;
           const date = dayjs(b.checkOutDate).format("DD/MM");
           grouped[date] = (grouped[date] || 0) + (b.totalPrice || 0);
         });
 
-        // Tạo đủ 10 ngày gần nhất
         const last10Days = [];
         for (let i = 9; i >= 0; i--) {
           const d = dayjs().subtract(i, "day");
@@ -47,15 +59,14 @@ const Statistics = () => {
             revenue: grouped[dateStr] || 0,
           });
         }
-
         setRevenueData(last10Days);
-
-        // Tính tổng doanh thu tháng hiện tại
+        
         const currentMonth = dayjs().month();
         const currentYear = dayjs().year();
-        const monthlyTotal = bookingRes
+        const monthlyTotal = bookingList
           .filter(
             (b) =>
+              b.checkOutDate &&
               dayjs(b.checkOutDate).month() === currentMonth &&
               dayjs(b.checkOutDate).year() === currentYear
           )
@@ -63,15 +74,21 @@ const Statistics = () => {
 
         setMonthlyRevenue(monthlyTotal);
       } catch (err) {
-        toast.error("Lỗi khi tải dữ liệu thống kê!");
+        console.error("Fetch error:", err);
+        if (err?.response?.status === 401) {
+          toast.error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại!");
+        } else {
+          toast.error("Lỗi khi tải dữ liệu thống kê!");
+        }
       }
     };
     fetchData();
   }, []);
 
-  const totalRooms = rooms.length;
-  const bookedRooms = rooms.filter((r) => r.status === "booked").length;
-  const availableRooms = rooms.filter((r) => r.status === "available").length;
+  const totalRooms = rooms?.length || 0;
+  const bookedRooms = rooms?.filter((r) => r.status === "booked")?.length || 0;
+  const availableRooms =
+    rooms?.filter((r) => r.status === "available")?.length || 0;
 
   return (
     <Content style={{ margin: "16px" }}>
@@ -118,7 +135,9 @@ const Statistics = () => {
               <LabelList
                 dataKey="revenue"
                 position="top"
-                formatter={(value) => (value > 0 ? value.toLocaleString() : "")}
+                formatter={(value) =>
+                  value > 0 ? value.toLocaleString() : ""
+                }
               />
             </Bar>
           </BarChart>
