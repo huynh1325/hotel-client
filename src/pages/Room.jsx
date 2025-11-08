@@ -122,7 +122,7 @@ const Room = () => {
         const booking = await getCurrentBookingByRoom(room._id);
         if (booking.data) {
           setCurrentBooking(booking.data);
-          setCheckoutRoom(room._id);
+          setCheckoutRoom(room);
           setIsCheckoutModalVisible(true);
         } else {
           toast.error("Không tìm thấy booking nào cho phòng này!");
@@ -263,13 +263,15 @@ const Room = () => {
         return;
       }
 
-      const currentBooking = await getCurrentBookingByRoom(checkoutRoom._id);
-        if (!currentBooking?._id) {
+      const currentBookingRes = await getCurrentBookingByRoom(checkoutRoom._id);
+      const currentBookingData = currentBookingRes?.data;
+
+        if (!currentBookingData?._id) {
           toast.error("Không tìm thấy booking nào đang active cho phòng này!");
           return;
         }
 
-      await checkoutRoomApi(checkoutRoom._id, currentBooking._id);
+      await checkoutRoomApi(checkoutRoom._id, currentBookingData._id);
 
       toast.success(`Checkout phòng ${checkoutRoom.roomNumber} thành công`);
       setRooms((prev) =>
